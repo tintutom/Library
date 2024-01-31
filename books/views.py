@@ -10,7 +10,7 @@ from rest_framework.permissions import IsAdminUser
 from rest_framework_simplejwt.tokens import RefreshToken
 from .models import Author,Genre,Book
 from .serializers import GenreSerializer,BookSerializer,AuthorSerializer
-
+import csv
 # author signup view
 class AuthorSignupAPIView(APIView):
     def post(self, request):
@@ -114,6 +114,42 @@ class AuthorBooksAPIView(generics.ListAPIView):
         queryset = self.get_queryset()
         serializer = self.serializer_class(queryset, many=True)
         return Response(serializer.data)
+
+
+# export books of a specific genre into a csv or JSON format
+class ExportBooksByGenreAPIView(generics.GenericAPIView):
+    def get(self, request, genre_name):
+        # Fetch books by genre name
+        books = Book.objects.filter(genre__name=genre_name)
+
+        # Serialize book data
+        serializer = BookSerializer(books, many=True)
+
+        # Export data to CSV or JSON format
+        data = serializer.data
+        format = request.query_params.get('format', 'json')
+
+        if format == 'csv':
+            response = self.export_to_csv(data)
+            return response
+        elif format == 'json':
+            return Response(data, status=status.HTTP_200_OK)
+        else:
+            return Response({"error": "Invalid format specified."}, status=status.HTTP_400_BAD_REQUEST)
+
+    def export_to_csv(self, data):
+        response = Response(content_type='text/csv')
+        response['Content-Disposition'] = 'attachment; filename="books.csv"'
+
+        # Write CSV header
+        writer = csv.writer(response)
+        writer.writerow(['Book Name', 'Author Name', 'Number of Pages', 'Genre Name'])
+
+        # Write CSV rows
+        for book in data:
+            writer.writerow([book['title'], book['author_name'], book['pages'], book['genre_name']])
+
+        return response
 
 
 # Author book creating view
